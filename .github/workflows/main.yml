@@ -31,7 +31,7 @@ jobs:
         MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
       run: |
         cd MLProject
-        mlflow run . --env-manager=local
+        mlflow run . --env-manager=local --experiment-name CI_GDP_Prediction
         
     # 5. Login ke Docker Hub
     - name: Login to Docker Hub
