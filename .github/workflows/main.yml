@@ -1,1 +1,64 @@
+name: Train and Build Docker
 
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # 1. Checkout Code
+    - uses: actions/checkout@v3
+
+    # 2. Setup Python
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    # 3. Install MLflow & DagsHub
+    - name: Install dependencies
+      run: |
+        pip install mlflow dagshub pandas scikit-learn matplotlib seaborn
+
+    # 4. Run MLflow Project (Training)
+    - name: Run MLflow Project
+      env:
+        MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+        MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
+      run: |
+        cd MLProject
+        mlflow run . --no-conda --env-manager=local
+        
+    # 5. Login ke Docker Hub
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    # 6. Build & Push Docker Image (Syarat Advance)
+    - name: Build and Push Docker Image
+      env:
+        MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+        MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
+      run: |
+        cd MLProject
+        # Ambil Run ID dari file yang dibuat saat training
+        RUN_ID=$(cat run_id.txt)
+        echo "Building Docker for Run ID: $RUN_ID"
+        
+        # Nama Image: username/nama-image:tag
+        IMAGE_NAME="${{ secrets.DOCKER_USERNAME }}/gdp-predictor:latest"
+        
+        # Perintah MLflow untuk build docker image dari model yang baru dilatih
+        mlflow models build-docker \
+          --model-uri "runs:/$RUN_ID/model" \
+          --name "$IMAGE_NAME"
+        
+        # Push ke Docker Hub
+        docker push "$IMAGE_NAME"
